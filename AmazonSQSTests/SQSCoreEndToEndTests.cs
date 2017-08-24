@@ -11,7 +11,7 @@ using Amazon.SQS.Util;
 using Amazon;
 using Amazon.Runtime;
 using AmazonSQS.Tests.API.Utilities;
-
+using System.Net;
 
 namespace AmazonSQS.Tests.API
 {
@@ -24,19 +24,47 @@ namespace AmazonSQS.Tests.API
         [Fact]
         public void EndToEndCreateQueueSendMessageReceiveMessageDeleteMessage_WithMessageAttributes_ShouldHaveEmptyQueueAfterDeleting()
         {
-            string queueName = "StandardQueue-CoreEndToEndTest";
+            const string queueName = "StandardQueue-CoreEndToEndTest";
 
-            var sqsRequest = new CreateQueueRequest();
-            sqsRequest.QueueName = queueName;
+            var createQueueResponse = CreateQueue(queueName);
+            ValidateQueueCreated(createQueueResponse, queueName);
 
+            var message = new SqsMessage("This is a simple message");
+            var messageResponse = SendMessage(message);
+            ValidateMessageSent(messageResponse);
+
+            var receiveMessageResponse = ReceiveMessage();
+
+            ValidateMessageReceived(receiveMessageResponse, message);
+
+            DeleteMessageFromQueue(receiveMessageResponse);
+
+            ValidateMessageDeletedFromQueue();
+        }
+
+        private CreateQueueResponse CreateQueue(string queueName)
+        {
+            var sqsRequest = new CreateQueueRequest(queueName);
             var createQueueResponse = _sqs.CreateQueue(sqsRequest);
             _queueUrl = createQueueResponse.QueueUrl;
 
-            // Ensure queue is created correctly
-            Assert.True(createQueueResponse.HttpStatusCode == System.Net.HttpStatusCode.OK);
+            return createQueueResponse;
+        }
+
+        private void ValidateQueueCreated(CreateQueueResponse createQueueResponse, string queueName)
+        {
+            Assert.True(createQueueResponse.HttpStatusCode == HttpStatusCode.OK);
             Assert.True(_queueUrl.EndsWith($"/{queueName}"));
 
-            var message = new SqsMessage("This is a simple message");
+            var listQueuesRequest = new ListQueuesRequest();
+            var listQueuesResponse = _sqs.ListQueues(listQueuesRequest);
+
+            var createdQueue = listQueuesResponse.QueueUrls.Where(q => q.EndsWith(queueName));
+            Assert.True(createdQueue.Count() == 1);
+        }
+
+        private SendMessageResponse SendMessage(SqsMessage message)
+        {
             var sendMessageRequest = new SendMessageRequest
             {
                 QueueUrl = _queueUrl,
@@ -46,32 +74,47 @@ namespace AmazonSQS.Tests.API
                     { "Custom", new MessageAttributeValue { DataType = "String", StringValue = "Custom Data" } }
                 }
             };
-            var messageResponse = _sqs.SendMessage(sendMessageRequest);
+            return _sqs.SendMessage(sendMessageRequest);
+        }
 
-            List<string> AttributesList = new List<string>();
-            AttributesList.Add("Custom");
+        private void ValidateMessageSent(SendMessageResponse messageResponse)
+        {
+            Assert.True(messageResponse.HttpStatusCode == HttpStatusCode.OK);
+        }
 
-            var receiveMessageRequest = new ReceiveMessageRequest();
-            receiveMessageRequest.QueueUrl = _queueUrl;
-            receiveMessageRequest.WaitTimeSeconds = 10;
-            receiveMessageRequest.MessageAttributeNames = AttributesList;
-            var receiveMessageResponse = _sqs.ReceiveMessage(receiveMessageRequest);
+        private ReceiveMessageResponse ReceiveMessage()
+        {
+            var receiveMessageRequest = new ReceiveMessageRequest()
+            {
+                QueueUrl = _queueUrl,
+                WaitTimeSeconds = 10,
+                MessageAttributeNames = new List<string>() { "Custom" }
+            };
+            return _sqs.ReceiveMessage(receiveMessageRequest);
+        }
 
-            // Ensure message is received
+        private void ValidateMessageReceived(ReceiveMessageResponse receiveMessageResponse, SqsMessage message)
+        {
+            Assert.True(receiveMessageResponse.HttpStatusCode == HttpStatusCode.OK);
             Assert.True(receiveMessageResponse.Messages.Count == 1);
             var receivedMessage = receiveMessageResponse.Messages.First();
             Assert.True(receivedMessage.Body == message.Body);
             Assert.True(receivedMessage.MD5OfBody == message.Md5Hash);
             Assert.True(receivedMessage.MessageAttributes.Count() == 1);
             Assert.True(receivedMessage.MessageAttributes.First().Value.StringValue == "Custom Data");
+        }
 
+        private void DeleteMessageFromQueue(ReceiveMessageResponse receiveMessageResponse)
+        {
             var messageReceiptHandle = receiveMessageResponse.Messages.First().ReceiptHandle;
             var deleteRequest = new DeleteMessageRequest();
             deleteRequest.QueueUrl = _queueUrl;
             deleteRequest.ReceiptHandle = messageReceiptHandle;
             _sqs.DeleteMessage(deleteRequest);
+        }
 
-            // Ensure message was deleted from queue
+        private void ValidateMessageDeletedFromQueue()
+        {
             var receiveEmptyMessageRequest = new ReceiveMessageRequest();
             receiveEmptyMessageRequest.QueueUrl = _queueUrl;
             var receiveEmptyMessageResponse = _sqs.ReceiveMessage(receiveEmptyMessageRequest);

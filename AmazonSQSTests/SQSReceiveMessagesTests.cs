@@ -29,8 +29,7 @@ namespace AmazonSQS.Tests.API
             {
                 Attributes = new Dictionary<string, string>()
                 {
-                    { QueueAttributeName.VisibilityTimeout , visibilityTimeoutSeconds.ToString() }//,
-                    //{ QueueAttributeName.ReceiveMessageWaitTimeSeconds, "5" }
+                    { QueueAttributeName.VisibilityTimeout , visibilityTimeoutSeconds.ToString() }
                 }
             };
             var createQueueResponse = _sqs.CreateQueue(sqsRequest);

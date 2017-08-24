@@ -34,8 +34,8 @@ namespace AmazonSQS.Tests.API
             _queueUrl = createQueueResponse.QueueUrl;
 
             // Find the the queue in the list of queues
-            ListQueuesRequest listQueuesRequest = new ListQueuesRequest();
-            ListQueuesResponse listQueuesResponse = _sqs.ListQueues(listQueuesRequest);
+            var listQueuesRequest = new ListQueuesRequest();
+            var listQueuesResponse = _sqs.ListQueues(listQueuesRequest);
 
             // Double check the queue is registered in the list of queues
             var createdQueue = listQueuesResponse.QueueUrls.Where(q => q.EndsWith(queueName));

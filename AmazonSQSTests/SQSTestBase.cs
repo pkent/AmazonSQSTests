@@ -13,11 +13,18 @@ namespace AmazonSQS.Tests.API
         protected AmazonSQSClient _sqs;
         protected string _queueUrl;
 
+        /// <summary>
+        /// Note: xUnit will create an instance of the test class on every test case hence each test
+        /// will have a new client.
+        /// </summary>
         public SQSTestBase()
         {
             _sqs = LocalSQSClientBuilder.CreateClient();
         }
 
+        /// <summary>
+        /// Cleanup after every test case is run.
+        /// </summary>
         public void Dispose()
         {
             if (!string.IsNullOrEmpty(_queueUrl))
